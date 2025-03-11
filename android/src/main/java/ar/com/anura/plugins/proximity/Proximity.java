@@ -49,8 +49,9 @@ public class Proximity implements SensorEventListener{
         }
 
         Log.d(TAG, "XXX enable proximity sensor");
-        if(wakeLock != null) {
+        if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
+            wakeLock = null;
         }
         wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, this.toString());
         wakeLock.acquire();
@@ -62,7 +63,7 @@ public class Proximity implements SensorEventListener{
             sensorManager.unregisterListener(this);
         }
 
-        if(wakeLock != null) {
+        if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
             wakeLock = null;
         }
