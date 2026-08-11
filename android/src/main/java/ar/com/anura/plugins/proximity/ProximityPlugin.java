@@ -1,7 +1,5 @@
 package ar.com.anura.plugins.proximity;
 
-import androidx.appcompat.app.AppCompatActivity;
-
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -12,33 +10,31 @@ public class ProximityPlugin extends Plugin {
 
     private Proximity proximity;
 
+    @Override
     public void load() {
-        AppCompatActivity activity = getActivity();
-        proximity = new Proximity(activity);
+        proximity = new Proximity(getContext());
     }
 
     @PluginMethod
     public void enable(PluginCall call) {
-        if (getActivity().isFinishing()) {
-            call.reject("Proximity plugin error: App is finishing");
-            return;
+        try {
+            proximity.enable();
+            call.resolve();
+        } catch (IllegalStateException exception) {
+            call.unavailable(exception.getMessage());
+        } catch (RuntimeException exception) {
+            call.reject("Unable to enable the proximity sensor", "ENABLE_FAILED", exception);
         }
-
-        proximity.enable();
-
-        call.resolve();
     }
 
     @PluginMethod
     public void disable(PluginCall call) {
-        if (getActivity().isFinishing()) {
-            call.reject("Proximity plugin error: App is finishing");
-            return;
+        try {
+            proximity.disable();
+            call.resolve();
+        } catch (RuntimeException exception) {
+            call.reject("Unable to disable the proximity sensor", "DISABLE_FAILED", exception);
         }
-
-        proximity.disable();
-
-        call.resolve();
     }
 
     /**
@@ -46,7 +42,12 @@ public class ProximityPlugin extends Plugin {
      */
     @Override
     public void handleOnDestroy() {
-        proximity.disable();
+        try {
+            if (proximity != null) {
+                proximity.disable();
+            }
+        } finally {
+            super.handleOnDestroy();
+        }
     }
-
 }

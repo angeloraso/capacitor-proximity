@@ -1,108 +1,39 @@
 package ar.com.anura.plugins.proximity;
 
-import static android.hardware.Sensor.TYPE_PROXIMITY;
-import static android.hardware.SensorManager.SENSOR_DELAY_NORMAL;
-
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
-import android.os.PowerManager;
 import android.content.Context;
-import android.util.Log;
+import android.os.PowerManager;
 
-import androidx.appcompat.app.AppCompatActivity;
+public class Proximity {
 
-public class Proximity implements SensorEventListener{
-
-    final int DISABLED = 0;
-    final int ENABLED = 1;
-    final int NEAR = 1;
-    final int FAR = 0;
-    final String TAG = "Proximity";
-
-    final long TIMEOUT = 30000;
-    private SensorManager sensorManager;
-    private PowerManager powerManager;
+    private final PowerManager powerManager;
+    private final String wakeLockTag;
     private PowerManager.WakeLock wakeLock;
 
-    Sensor mSensor;
-    int status;
-    int proximity;
-    long timeStamp;
-    long lastAccessTime;
-
-    Proximity(final AppCompatActivity activity) {
-        proximity = 0;
-        timeStamp = 0;
-        status = DISABLED;
-        sensorManager = (SensorManager) activity.getSystemService(Context.SENSOR_SERVICE);
-        powerManager = (PowerManager) activity.getSystemService(Context.POWER_SERVICE);
-        wakeLock = null;
+    Proximity(final Context context) {
+        powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+        wakeLockTag = context.getPackageName() + ":proximity";
     }
 
-    public void enable() {
-        if (status == DISABLED) {
-            mSensor = sensorManager.getDefaultSensor(TYPE_PROXIMITY);
-            sensorManager.registerListener((SensorEventListener) this, mSensor, SENSOR_DELAY_NORMAL);
-            lastAccessTime = System.currentTimeMillis();
-        }
-
-        Log.d(TAG, "XXX enable proximity sensor");
+    public synchronized void enable() {
         if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            wakeLock = null;
-        }
-        wakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, this.toString());
-        wakeLock.acquire();
-        status = ENABLED;
-    }
-
-    public void disable() {
-        if (status == ENABLED) {
-            sensorManager.unregisterListener(this);
-        }
-
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            wakeLock = null;
-        }
-
-        status = DISABLED;
-    }
-
-    public void onSensorChanged(SensorEvent event) {
-
-        int proximity;
-
-        Log.d(TAG, "XXX onSensorChanged sensor length -> " + event.values.length);
-
-        if(event.values.length < 1) {
-            Log.e(TAG, "XXX Proximity SensorEvent contained no values");
             return;
         }
 
-        for(int i = 0; i < event.values.length; i++) {
-            Log.d(TAG, "XXX onSensorChanged [" + i + "]-> " + event.values[i]);
+        if (!powerManager.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+            throw new IllegalStateException("The proximity sensor is not available on this device");
         }
 
-        if (event.values[0] == 0) {
-            proximity = NEAR;
-        } else {
-            proximity = FAR;
-        }
-
-        // Save proximity
-        timeStamp = System.currentTimeMillis();
-        this.proximity = proximity;
-
-        // If proximity hasn't been read for TIMEOUT time, then turn off sensor to save power
-        if ((this.timeStamp - this.lastAccessTime) > this.TIMEOUT) {
-            disable();
-        }
+        PowerManager.WakeLock newWakeLock = powerManager.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, wakeLockTag);
+        newWakeLock.setReferenceCounted(false);
+        newWakeLock.acquire();
+        wakeLock = newWakeLock;
     }
 
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        return;
+    public synchronized void disable() {
+        PowerManager.WakeLock currentWakeLock = wakeLock;
+        wakeLock = null;
+        if (currentWakeLock != null && currentWakeLock.isHeld()) {
+            currentWakeLock.release();
+        }
     }
 }
